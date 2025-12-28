@@ -13,13 +13,17 @@
   <div class="device crt-mode pda">
     <div class="bezel">
       <div class="screen">
+
+        <!-- PDA STATUS (hidden until boot completes) -->
+        <div id="pda-status" style="display:none;">
+          BATTERY: <span id="battery">87%</span>
+        </div>
+
+        <!-- TERMINAL OUTPUT -->
         <pre id="terminal">
 <span id="content"></span><span id="cursor">█</span>
-> SYS_BOOT SEQ 00.77
-> AUTH REQUIRED
-> ENTER COMMAND
-</span><span id="cursor">█</span>
         </pre>
+
       </div>
     </div>
   </div>

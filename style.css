@@ -149,3 +149,17 @@ pre {
 .input {
   color: var(--text);
 }
+/* =========================
+   PDA STATUS BAR
+   ========================= */
+
+#pda-status {
+  color: var(--text);
+  font-size: 12px;
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.device.crt-mode #pda-status {
+  display: none !important;
+}
