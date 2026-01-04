@@ -1,166 +1,130 @@
+/* =====================
+   GAME STATE
+===================== */
+
+const defaultState = {
+  corruptionMode: "OFF",
+  locations: {
+    BRIDGE: { unlocked: true, logs: ["Bridge log: power fluctuations detected."] },
+    MEDICAL: { unlocked: true, logs: ["Medical log: triage overwhelmed."] },
+    ENGINEERING: { unlocked: false, logs: ["Engineering log: reactor offline."] },
+    HABITATION: { unlocked: true, logs: ["Hab log: evacuation incomplete."] },
+    CARGO: { unlocked: true, logs: ["Cargo log: motion detected."] }
+  },
+  crew: {
+    "CAPT. HOLLIS": "UNKNOWN",
+    "DR. KLINE": "ACTIVE",
+    "ENG. TORRES": "MISSING"
+  },
+  objectives: [
+    "RESTORE POWER",
+    "LOCATE SURVIVORS",
+    "MAINTAIN OXYGEN LEVELS"
+  ]
+};
+
+let gameState = JSON.parse(localStorage.getItem("mothershipState")) || structuredClone(defaultState);
+
+function saveState() {
+  localStorage.setItem("mothershipState", JSON.stringify(gameState));
+}
+
+/* =====================
+   TERMINAL OUTPUT
+===================== */
+
 const content = document.getElementById("content");
-const cursor = document.getElementById("cursor");
-const pdaStatus = document.getElementById("pda-status");
+const terminal = document.getElementById("terminal");
 
-let isTyping = false;
-let inputBuffer = "";
-
-// --------------------
-// UTILITIES
-// --------------------
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function write(text, delay = 20) {
+  return new Promise(resolve => {
+    let i = 0;
+    const interval = setInterval(() => {
+      content.textContent += text[i++];
+      terminal.scrollTop = terminal.scrollHeight;
+      if (i >= text.length) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, delay);
+  });
 }
 
-async function typeLine(text, speed = 40) {
-  isTyping = true;
-  for (let char of text) {
-    content.textContent += char;
-    scrollToBottom(); // Ensure we scroll down as we type
-    await sleep(speed);
-  }
-  content.textContent += "\n";
-  scrollToBottom();
-  isTyping = false;
+async function boot() {
+  content.textContent = "";
+  await write("SYS_BOOT SEQ 00.77\n");
+  await write("DATA INTEGRITY: " + gameState.corruptionMode + "\n\n");
+  await write("TYPE HELP FOR COMMANDS\n\n> ");
 }
 
-function prompt() {
-  content.textContent += "> ";
-  scrollToBottom();
-}
+setTimeout(boot, 10000);
 
-// --------------------
-// BOOT SEQUENCE
-// --------------------
-async function bootSequence() {
-  await typeLine("SYS_BOOT SEQ 00.77", 50);
-  await sleep(600);
+/* =====================
+   COMMAND HANDLING
+===================== */
 
-  await typeLine("MEMORY CHECK ........ OK", 30);
-  await sleep(400);
+async function handleCommand(cmd) {
+  cmd = cmd.toUpperCase();
 
-  await typeLine("POWER CORE STATUS ... STABLE", 30);
-  await sleep(400);
-
-  await typeLine("NAVIGATION ARRAY ... OFFLINE", 30);
-  await sleep(400);
-
-  await typeLine("LIFE SUPPORT ....... DEGRADED", 30);
-  await sleep(600);
-
-  await typeLine("SECURITY PROTOCOLS . ACTIVE", 30);
-  await sleep(600);
-
-  await typeLine("AUTHORIZATION REQUIRED", 50);
-  await sleep(800);
-
-  await typeLine("TYPE 'HELP' FOR AVAILABLE COMMANDS", 40);
-  await sleep(400);
-
-  pdaStatus.style.display = "block";
-  prompt();
-}
-
-// --------------------
-// COMMAND HANDLER
-// --------------------
-function handleCommand(cmd) {
-  const command = cmd.trim().toUpperCase();
-
-  content.textContent += command + "\n";
-  scrollToBottom();
-
-  switch (command) {
-    case "HELP":
-      content.textContent +=
-      scrollToBottom();
-`AVAILABLE COMMANDS:
-- HELP
-- LOGS
-- CREW
-- SECURITY
-- CLEAR
-
-`;
-      break;
-
-    case "LOGS":
-      content.textContent +=
-      scrollToBottom();
-`ACCESSING SHIP LOGS...
-ERROR: MULTIPLE ENTRIES CORRUPTED
-LAST CLEAN LOG: DAY 184
-
-`;
-      break;
-
-    case "CREW":
-      content.textContent +=
-      scrollToBottom();
-`CREW ROSTER:
-- CAPTAIN: STATUS UNKNOWN
-- ENGINEER: DECEASED
-- MEDICAL: MISSING
-- YOU
-
-`;
-      break;
-
-    case "SECURITY":
-      content.textContent +=
-      scrollToBottom();
-`SECURITY STATUS:
-LOCKDOWNS: PARTIAL
-CAMERAS: OFFLINE
-THREAT INDEX: ELEVATED
-
-`;
-      break;
-
-    case "CLEAR":
-      content.textContent = "";
-      scrollToBottom();
-      break;
-
-    default:
-      content.textContent += "UNKNOWN COMMAND\n\n";
+  if (cmd === "HELP") {
+    await write("\nCOMMANDS:\n");
+    await write("LOCATIONS, MAP, OBJECTIVES, CREW\n");
+    await write("TYPE LOCATION NAME TO ACCESS\n");
+    return;
   }
 
-  prompt();
+  if (cmd === "LOCATIONS") {
+    await write("\nLOCATIONS:\n");
+    Object.entries(gameState.locations).forEach(([k,v]) =>
+      write(`- ${k}${v.unlocked ? "" : " [LOCKED]"}\n`)
+    );
+    return;
+  }
+
+  if (cmd === "MAP") {
+    await write("\n[BRIDGE]--[HAB]\n   |       |\n[ENG]--[MED]--[CARGO]\n");
+    return;
+  }
+
+  if (cmd === "OBJECTIVES") {
+    await write("\nOBJECTIVES:\n");
+    gameState.objectives.forEach(o => write(`- ${o}\n`));
+    return;
+  }
+
+  if (cmd === "CREW") {
+    await write("\nCREW MANIFEST:\n");
+    Object.entries(gameState.crew).forEach(([n,s]) => write(`- ${n}: ${s}\n`));
+    return;
+  }
+
+  if (gameState.locations[cmd]) {
+    const loc = gameState.locations[cmd];
+    if (!loc.unlocked) {
+      await write(`\nACCESS DENIED: ${cmd}\n`);
+      return;
+    }
+    await write(`\nACCESSING: ${cmd}\n`);
+    loc.logs.forEach(l => write(`- ${l}\n`));
+    return;
+  }
+
+  await write("\nUNKNOWN COMMAND\n");
 }
 
-// --------------------
-// INPUT LISTENER
-// --------------------
-document.addEventListener("keydown", (e) => {
-  if (isTyping) return;
+let input = "";
 
-  if (e.key === "Backspace") {
-    inputBuffer = inputBuffer.slice(0, -1);
+document.addEventListener("keydown", async e => {
+  if (!terminal) return;
+  if (e.key === "Enter") {
+    await handleCommand(input);
+    input = "";
+    await write("\n> ");
+  } else if (e.key === "Backspace") {
+    input = input.slice(0, -1);
     content.textContent = content.textContent.slice(0, -1);
-  } 
-  else if (e.key === "Enter") {
-    content.textContent += "\n";
-    handleCommand(inputBuffer);
-    inputBuffer = "";
-  } 
-  else if (e.key.length === 1) {
-    inputBuffer += e.key;
+  } else if (e.key.length === 1) {
+    input += e.key;
     content.textContent += e.key;
   }
 });
-
-// --------------------
-// STARTUP DELAY
-// --------------------
-setTimeout(() => {
-  bootSequence();
-}, 15000); // 15 seconds
-
-// --------------------
-// AUTO-SCROLL TERMINAL
-// --------------------
-function scrollToBottom() {
-  const terminal = document.getElementById("terminal");
-  terminal.scrollTop = terminal.scrollHeight;
-}
